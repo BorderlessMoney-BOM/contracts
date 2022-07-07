@@ -18,4 +18,6 @@ interface IBorderlessNFT {
     function operatorByTokenId(uint256 tokenId) external view returns (address);
 
     function endEpoch() external;
+
+    function burn(uint256 tokenId) external;
 }

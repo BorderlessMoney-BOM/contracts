@@ -1,25 +1,42 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// When running the script with `npx hardhat run <script>` you'll find the Hardhat
-// Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
 
 async function main() {
-  // Hardhat always runs the compile task when running scripts with its command
-  // line interface.
-  //
-  // If this script is run directly using `node` you may want to call compile
-  // manually to make sure everything is compiled
-  // await hre.run('compile');
+  const usdc = "0x9aa7fEc87CA69695Dd1f879567CcF49F3ba417E2";
+  const aPolUsdc = "0xCdc2854e97798AfDC74BC420BD5060e022D14607";
+  const aavePool = "0x6c9fb0d5bd9429eb9cd96b85b81d872281771e6b";
 
-  // We get the contract to deploy
-  const Greeter = await hre.ethers.getContractFactory("Greeter");
-  const greeter = await Greeter.deploy("Hello, Hardhat!");
+  const BorderlessNFT = await hre.ethers.getContractFactory("BorderlessNFT");
+  const AaveUsdcStrategy = await hre.ethers.getContractFactory("AaveUSDCStrategy");
+  const borderlessNft = await BorderlessNFT.deploy();
+  const SDG = await hre.ethers.getContractFactory("SDGStaking");
+  const sdgStaking = await SDG.deploy(borderlessNft.address, usdc);
 
-  await greeter.deployed();
+  const aaveUsdcStrategy = await AaveUsdcStrategy.deploy(
+    usdc,
+    aPolUsdc,
+    aavePool
+  );
 
-  console.log("Greeter deployed to:", greeter.address);
+  await borderlessNft.grantRole(
+    await borderlessNft.MINTER_ROLE(),
+    sdgStaking.address
+  );
+
+  await borderlessNft.grantRole(
+    await borderlessNft.BURNER_ROLE(),
+    sdgStaking.address
+  );
+
+  await aaveUsdcStrategy.grantRole(
+    await aaveUsdcStrategy.VAULT_ROLE(),
+    sdgStaking.address
+  );
+
+  await sdgStaking.addStrategy(aaveUsdcStrategy.address);
+
+  console.log("Borderless NFT deployed to:", borderlessNft.address);
+  console.log("Aave USDC strategy deployed to:", aaveUsdcStrategy.address);
+  console.log("SDG Staking deployed to:", sdgStaking.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

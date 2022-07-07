@@ -6,13 +6,6 @@ pragma solidity ^0.8.0;
 /// @param minRequired minimum amount to send.
 error InvalidAmount(uint256 sent, uint256 minRequired);
 
-/// Transfer could not be completed.
-/// @param token token to transfer.
-/// @param from sender address
-/// @param to receiver address
-/// @param amount amount to transfer.
-error TransferFailed(address token, address from, address to, uint256 amount);
-
 /// Strategies cannot be empty
 error EmptyStrategies();
 
@@ -40,7 +33,23 @@ error USDCBalanceIsNotZero(uint256 usdcBalance);
 /// @param strategyAddress address of strategy.
 error InvalidStrategy(address strategyAddress);
 
+/// Trying to exit a stake thats not owned by the sender.
+/// @param sender sender address.
+/// @param owner owner address.
+/// @param stakeId stake id.
+error NotOwnerOfStake(address sender, address owner, uint256 stakeId);
+
+/// Nothing to unstake
+error NothingToUnstake();
+
+/// Stake is not delegated
+/// @param stakeId stake id.
+error StakeIsNotDelegated(uint256 stakeId);
+
 interface IStaking {
+    event Stake(uint256 stakeId, uint256 amount, uint256 stakePeriod);
+    event Exit(uint256 stakeId, uint256 amount);
+
     enum StakeStatus {
         UNDELEGATED,
         DELEGATED
@@ -63,9 +72,12 @@ interface IStaking {
     }
 
     /// @dev Stake USDC tokens into SDG. Tokens are stored on the SDG until its delegation to strategies.
-    ///      Unstake to retrieve the tokens.
     /// @param amount of USDC to stake.
     function stake(uint256 amount) external;
+
+    /// @dev Unstake USDC tokens from SDG. Tokens are returned to the sender.
+    /// @param stakeId of stake to unstake.
+    function exit(uint stakeId) external;
 
     function stakesByStatus(StakeStatus status)
         external
@@ -106,4 +118,8 @@ interface IStaking {
     function collectedRewards() external view returns (uint256);
 
     function collectRewards() external;
+
+    /// @dev Current epoch id
+    /// @return Current epoch id
+    function epoch() external view returns (uint256);
 }

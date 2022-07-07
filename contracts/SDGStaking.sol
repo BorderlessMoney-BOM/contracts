@@ -5,13 +5,14 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./IStaking.sol";
 import "./IBorderlessNFT.sol";
 import "./strategy/IStrategy.sol";
 
 import "hardhat/console.sol";
 
-contract SDGStaking is IStaking, Ownable {
+contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -25,8 +26,6 @@ contract SDGStaking is IStaking, Ownable {
     mapping(uint256 => StakeInfo) _stakeIdToStakeInfo;
     mapping(StakeStatus => EnumerableSet.UintSet) _stakeStatusToStakeIds;
 
-    event Stake(uint256 stakeId, uint256 amount, uint256 stakePeriod);
-
     constructor(address nft, address usdc) {
         _nft = IBorderlessNFT(nft);
         _usdc = IERC20(usdc);
@@ -34,7 +33,7 @@ contract SDGStaking is IStaking, Ownable {
 
     function stake(uint256 amount) external override {
         if (amount == 0) {
-            revert InvalidAmount(amount, 1 ether);
+            revert InvalidAmount(amount, 1**10 * 6);
         }
 
         uint256 stakeId = _nft.totalSupply();
@@ -50,8 +49,8 @@ contract SDGStaking is IStaking, Ownable {
             );
         }
 
-        uint256 epoch = _epochCounter.current();
-        _epochIdToStoredBalances[epoch].nextEpochBalance += amount;
+        uint256 _epoch = _epochCounter.current();
+        _epochIdToStoredBalances[_epoch].nextEpochBalance += amount;
 
         _stakeIdToStakeInfo[stakeId] = StakeInfo({
             amount: amount,
@@ -60,12 +59,62 @@ contract SDGStaking is IStaking, Ownable {
             status: StakeStatus.UNDELEGATED,
             strategies: new address[](0),
             shares: new uint256[](0),
-            epoch: epoch + 1
+            epoch: _epoch + 1
         });
 
         _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].add(stakeId);
 
         emit Stake(stakeId, amount, 10);
+    }
+
+    function exit(uint256 stakeId) external nonReentrant {
+        if (_nft.ownerOf(stakeId) != msg.sender) {
+            revert NotOwnerOfStake(msg.sender, _nft.ownerOf(stakeId), stakeId);
+        }
+        _nft.burn(stakeId);
+
+        /// TODO: check unstake period
+
+        StakeInfo storage stakeInfo = _stakeIdToStakeInfo[stakeId];
+
+        if (stakeInfo.amount == 0) {
+            revert NothingToUnstake();
+        }
+
+        if (stakeInfo.status == StakeStatus.DELEGATED) {
+            _stakeStatusToStakeIds[StakeStatus.DELEGATED].remove(stakeId);
+            _undelegate(stakeId);
+        } else {
+            _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].remove(stakeId);
+        }
+
+        bool sent = _usdc.transfer(msg.sender, stakeInfo.amount);
+        if (!sent) {
+            revert TransferFailed(
+                address(_usdc),
+                address(this),
+                msg.sender,
+                stakeInfo.amount
+            );
+        }
+
+        delete _stakeIdToStakeInfo[stakeId];
+        emit Exit(stakeId, stakeInfo.amount);
+    }
+
+    function _undelegate(uint256 stakeId) internal {
+        StakeInfo storage stakeInfo = _stakeIdToStakeInfo[stakeId];
+        if (stakeInfo.status != StakeStatus.DELEGATED) {
+            revert StakeIsNotDelegated(stakeId);
+        }
+
+        uint256 totalStrategies = stakeInfo.strategies.length;
+        for (uint256 i = 0; i < totalStrategies; i++) {
+            IStrategy strategy = IStrategy(stakeInfo.strategies[i]);
+            uint256 strategyAmount = (stakeInfo.amount * stakeInfo.shares[i]) /
+                100;
+            strategy.undelegate(strategyAmount);
+        }
     }
 
     function stakeInfoByStakeId(uint256 stakeId)
@@ -82,8 +131,8 @@ contract SDGStaking is IStaking, Ownable {
         view
         returns (StoredBalance memory)
     {
-        uint256 epoch = _epochCounter.current();
-        return storedBalanceByEpochId(epoch);
+        uint256 _epoch = _epochCounter.current();
+        return storedBalanceByEpochId(_epoch);
     }
 
     function storedBalanceByEpochId(uint256 epochId)
@@ -177,7 +226,7 @@ contract SDGStaking is IStaking, Ownable {
             IStrategy strategy = IStrategy(strategies[i]);
             uint256 amount = (undelegatedAmount * shares[i]) / 100;
             _usdc.approve(address(strategy), amount);
-            strategy.delegate(address(strategy), amount);
+            strategy.delegate(amount);
         }
     }
 
@@ -223,7 +272,7 @@ contract SDGStaking is IStaking, Ownable {
         uint256 totalStrategies = _activeStrategies.length();
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            amount += strategy.totalRewards(address(this));
+            amount += strategy.totalRewards();
         }
 
         return amount;
@@ -238,7 +287,7 @@ contract SDGStaking is IStaking, Ownable {
         uint256 totalStrategies = _activeStrategies.length();
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            amount += strategy.collectedRewards(address(this));
+            amount += strategy.collectedRewards();
         }
 
         return amount;
@@ -249,12 +298,26 @@ contract SDGStaking is IStaking, Ownable {
         uint256 amount;
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            uint256 availableRewards = strategy.totalRewards(address(this)) -
-                strategy.collectedRewards(address(this));
+            uint256 availableRewards = strategy.totalRewards() -
+                strategy.collectedRewards();
             amount += availableRewards;
-            strategy.collectRewards(address(this), availableRewards);
+            strategy.collectRewards(availableRewards);
         }
 
-        _usdc.transfer(msg.sender, amount);
+        bool sent = _usdc.transfer(msg.sender, amount);
+        if (!sent) {
+            revert TransferFailed(
+                address(_usdc),
+                address(this),
+                msg.sender,
+                amount
+            );
+        }
     }
+
+    function epoch() public view override returns (uint256) {
+        return _epochCounter.current();
+    }
+
+    /// TODO: mitigate blocked funds from undelegated amount
 }

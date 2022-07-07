@@ -15,8 +15,9 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
     IERC20 _aPolUsdc;
     IPool _pool;
 
-    mapping(address => uint256) _delegatedAmount;
-    mapping(address => uint256) _withdrawnAmount;
+    uint256 _delegatedAmount;
+    uint256 _withdrawnAmount;
+    uint256 _collectedRewards;
 
     constructor(
         address usdc,
@@ -29,44 +30,67 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         _pool = IPool(pool);
     }
 
-    function delegate(address sdgAddress, uint256 amount)
-        external
-        onlyRole(VAULT_ROLE)
-    {
-        console.log("Delegating to Aave USDC", amount);
+    function delegate(uint256 amount) external onlyRole(VAULT_ROLE) {
+        console.log("[AaveUSDC] Delegating to Aave USDC", amount);
 
+        _usdc.transferFrom(msg.sender, address(this), amount);
         _usdc.approve(address(_pool), amount);
         _pool.supply(address(_usdc), amount, address(this), 0);
-        _delegatedAmount[sdgAddress] += amount;
+        _delegatedAmount += amount;
 
-        emit Delegate(sdgAddress, amount);
+        emit Delegate(amount);
     }
 
-    function withdraw(address sdgAddress, uint256 amount)
-        external
-        onlyRole(VAULT_ROLE)
-    {
+    function undelegate(uint256 amount) external onlyRole(VAULT_ROLE) {
         _pool.withdraw(address(_usdc), amount, address(this));
-        _usdc.transfer(msg.sender, amount);
-        _withdrawnAmount[sdgAddress] += amount;
+        bool sent = _usdc.transfer(msg.sender, amount);
+        if (!sent) {
+            revert TransferFailed(
+                address(_usdc),
+                address(this),
+                msg.sender,
+                amount
+            );
+        }
+        _withdrawnAmount += amount;
 
-        emit Withdraw(sdgAddress, amount);
+        emit Withdraw(amount);
     }
 
-    function totalRewards(address sdgAddress)
-        external
-        view
-        returns (uint256 amount)
-    {}
+    function totalRewards() public view returns (uint256 amount) {
+        uint256 aPolBalance = _aPolUsdc.balanceOf(address(this));
+        return aPolBalance - balance();
+    }
 
-    function collectedRewards(address sdgAddress)
-        external
-        view
-        returns (uint256 amount)
-    {}
+    function collectedRewards() external view returns (uint256 amount) {
+        return _collectedRewards;
+    }
 
-    function collectRewards(address sdgAddress, uint256 amount)
+    function collectRewards(uint256 amount)
         external
         override
-    {}
+        onlyRole(VAULT_ROLE)
+    {
+        if (amount > totalRewards()) {
+            revert InvalidRewardsAmount(amount, totalRewards());
+        }
+        _collectedRewards += amount;
+
+        _pool.withdraw(address(_usdc), amount, address(this));
+        bool sent = _usdc.transfer(msg.sender, amount);
+        if (!sent) {
+            revert TransferFailed(
+                address(_usdc),
+                address(this),
+                msg.sender,
+                amount
+            );
+        }
+
+        emit CollectRewards(amount);
+    }
+
+    function balance() public view returns (uint256 amount) {
+        return _delegatedAmount - _withdrawnAmount;
+    }
 }

@@ -15,6 +15,7 @@
     - [Stake Status](#stake-status)
     - [Delegating](#delegating)
   - [Rewards](#rewards)
+  - [Initiatives](#initiatives)
 
 ## Overview
 
@@ -145,3 +146,8 @@ function collectedRewards(address sdgAddress)
 /// @param sdgAddress address of the SDG.
 function collectRewards(address sdgAddress, uint256 amount) external;
 ```
+
+
+## Initiatives
+80% divided between all initiatives
+20% divided between most voted initiatives

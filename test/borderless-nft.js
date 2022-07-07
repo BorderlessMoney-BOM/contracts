@@ -8,6 +8,11 @@ describe("BorderlessNFT", function () {
     const borderlessNft = await BorderlessNFT.deploy();
     await borderlessNft.deployed();
 
+    await borderlessNft.grantRole(
+      await borderlessNft.MINTER_ROLE(),
+      owner.address
+    );
+
     const mint = await borderlessNft.safeMint(owner.address, addr1.address);
     await mint.wait();
 
@@ -20,6 +25,11 @@ describe("BorderlessNFT", function () {
     const BorderlessNFT = await ethers.getContractFactory("BorderlessNFT");
     const borderlessNft = await BorderlessNFT.deploy();
     await borderlessNft.deployed();
+
+    await borderlessNft.grantRole(
+      await borderlessNft.MINTER_ROLE(),
+      owner.address
+    );
 
     const mint = await borderlessNft.safeMint(owner.address, addr1.address);
     await mint.wait();

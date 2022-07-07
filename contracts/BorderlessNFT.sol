@@ -12,12 +12,13 @@ contract BorderlessNFT is ERC721, ERC721Enumerable, ERC721Burnable, AccessContro
     using Counters for Counters.Counter;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+
     Counters.Counter private _tokenIdCounter;
     mapping (uint => address) public tokenIdToSDGOperator;
 
     constructor() ERC721("Borderless", "BLESS") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
     }
 
     function _baseURI() internal pure override returns (string memory) {
@@ -29,6 +30,10 @@ contract BorderlessNFT is ERC721, ERC721Enumerable, ERC721Burnable, AccessContro
         _tokenIdCounter.increment();
         tokenIdToSDGOperator[tokenId] = sdgOperator;
         _safeMint(to, tokenId);
+    }
+
+    function burn(uint256 tokenId) public override onlyRole(BURNER_ROLE) {
+        _burn(tokenId);
     }
 
     function operatorByTokenId(uint256 tokenId) public view returns (address) {
