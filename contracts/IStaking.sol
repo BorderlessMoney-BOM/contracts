@@ -46,6 +46,24 @@ error NothingToUnstake();
 /// @param stakeId stake id.
 error StakeIsNotDelegated(uint256 stakeId);
 
+/// Initiatives cannot be empty
+error EmptyInitiatives();
+
+/// Initiative ids and shares lenghts must be equal.
+/// @param initiativeIdsLength lenght of initiative ids array.
+/// @param sharesLenght lenght of shares array.
+error InitiativesAndSharesLengthsNotEqual(
+    uint256 initiativeIdsLength,
+    uint256 sharesLenght
+);
+
+/// Initiative is not active
+/// @param initiativeId id of initiative.
+error InitiativeNotActive(uint256 initiativeId);
+
+/// Initiatives shares neeed to be updated
+error InitiativesSharesNeedToBeUpdated();
+
 interface IStaking {
     event Stake(uint256 stakeId, uint256 amount, uint256 stakePeriod);
     event Exit(uint256 stakeId, uint256 amount);
@@ -71,13 +89,22 @@ interface IStaking {
         uint256[] shares;
     }
 
+    struct Initiative {
+        uint256 id;
+        string name;
+        uint256 share;
+        uint256 collectedRewards;
+        address controller;
+        bool active;
+    }
+
     /// @dev Stake USDC tokens into SDG. Tokens are stored on the SDG until its delegation to strategies.
     /// @param amount of USDC to stake.
     function stake(uint256 amount) external;
 
     /// @dev Unstake USDC tokens from SDG. Tokens are returned to the sender.
     /// @param stakeId of stake to unstake.
-    function exit(uint stakeId) external;
+    function exit(uint256 stakeId) external;
 
     function stakesByStatus(StakeStatus status)
         external
@@ -117,7 +144,20 @@ interface IStaking {
 
     function collectedRewards() external view returns (uint256);
 
-    function collectRewards() external;
+    function distributeRewards() external;
+
+    function addInitiative(string memory name, address controller)
+        external
+        returns (uint256 initiativeId);
+
+    function removeInitiative(uint256 initiativeId) external;
+
+    function setInitiativesShares(
+        uint256[] memory initiativeIds,
+        uint256[] memory shares
+    ) external;
+
+    function initiatives() external view returns (Initiative[] memory);
 
     /// @dev Current epoch id
     /// @return Current epoch id

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./IStaking.sol";
 import "./IBorderlessNFT.sol";
@@ -12,23 +12,32 @@ import "./strategy/IStrategy.sol";
 
 import "hardhat/console.sol";
 
-contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
+contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
+
     IERC20 _usdc;
     IBorderlessNFT _nft;
     Counters.Counter _epochCounter;
+    Counters.Counter _initiativesCounter;
     EnumerableSet.AddressSet _activeStrategies;
+    EnumerableSet.UintSet _activeInitiatives;
+    bool _sharesNeedsUpdate;
 
     mapping(uint256 => StoredBalance) _epochIdToStoredBalances;
     mapping(uint256 => StakeInfo) _stakeIdToStakeInfo;
     mapping(StakeStatus => EnumerableSet.UintSet) _stakeStatusToStakeIds;
+    mapping(uint256 => Initiative) _initiatives;
 
     constructor(address nft, address usdc) {
         _nft = IBorderlessNFT(nft);
         _usdc = IERC20(usdc);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(CONTROLLER_ROLE, msg.sender);
     }
 
     function stake(uint256 amount) external override {
@@ -36,8 +45,7 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
             revert InvalidAmount(amount, 1**10 * 6);
         }
 
-        uint256 stakeId = _nft.totalSupply();
-        _nft.safeMint(msg.sender, address(this));
+        uint256 stakeId = _nft.safeMint(msg.sender, address(this));
 
         bool sent = _usdc.transferFrom(msg.sender, address(this), amount);
         if (!sent) {
@@ -179,7 +187,7 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
     function delegateAll(address[] memory strategies, uint256[] memory shares)
         external
         override
-        onlyOwner
+        onlyRole(CONTROLLER_ROLE)
     {
         if (strategies.length == 0) {
             revert EmptyStrategies();
@@ -230,9 +238,9 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
         }
     }
 
-    function endEpoch() external override {
-        if (_usdc.balanceOf(address(this)) != 0) {
-            revert USDCBalanceIsNotZero(_usdc.balanceOf(address(this)));
+    function endEpoch() external override onlyRole(CONTROLLER_ROLE) {
+        if (_sharesNeedsUpdate) {
+            revert InitiativesSharesNeedToBeUpdated();
         }
 
         _epochCounter.increment();
@@ -245,11 +253,19 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
         });
     }
 
-    function addStrategy(address strategy) external override onlyOwner {
+    function addStrategy(address strategy)
+        external
+        override
+        onlyRole(CONTROLLER_ROLE)
+    {
         _activeStrategies.add(strategy);
     }
 
-    function removeStrategy(address strategy) external override onlyOwner {
+    function removeStrategy(address strategy)
+        external
+        override
+        onlyRole(CONTROLLER_ROLE)
+    {
         _activeStrategies.remove(strategy);
     }
 
@@ -293,7 +309,11 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
         return amount;
     }
 
-    function collectRewards() external override onlyOwner {
+    function distributeRewards() external override onlyRole(CONTROLLER_ROLE) {
+        if (_sharesNeedsUpdate) {
+            revert InitiativesSharesNeedToBeUpdated();
+        }
+
         uint256 totalStrategies = _activeStrategies.length();
         uint256 amount;
         for (uint256 i = 0; i < totalStrategies; i++) {
@@ -304,20 +324,106 @@ contract SDGStaking is IStaking, Ownable, ReentrancyGuard {
             strategy.collectRewards(availableRewards);
         }
 
-        bool sent = _usdc.transfer(msg.sender, amount);
-        if (!sent) {
-            revert TransferFailed(
-                address(_usdc),
-                address(this),
-                msg.sender,
-                amount
+        uint256 totalInitiatives = _activeInitiatives.length();
+        if (totalInitiatives == 0) {
+            revert EmptyInitiatives();
+        }
+
+        for (uint256 i = 0; i < totalInitiatives; i++) {
+            Initiative memory initiative = _initiatives[
+                _activeInitiatives.at(i)
+            ];
+            uint256 initiativeAmount = (amount * initiative.share) / 100;
+            bool sent = _usdc.transfer(initiative.controller, initiativeAmount);
+            if (!sent) {
+                revert TransferFailed(
+                    address(_usdc),
+                    address(this),
+                    initiative.controller,
+                    initiativeAmount
+                );
+            }
+        }
+    }
+
+    function addInitiative(string memory name, address controller)
+        public
+        override
+        onlyRole(CONTROLLER_ROLE)
+        returns (uint256 initiativeId)
+    {
+        initiativeId = _initiativesCounter.current();
+        _initiativesCounter.increment();
+
+        _activeInitiatives.add(initiativeId);
+        _sharesNeedsUpdate = true;
+
+        _initiatives[initiativeId] = Initiative({
+            id: initiativeId,
+            name: name,
+            share: 0,
+            collectedRewards: 0,
+            controller: controller,
+            active: true
+        });
+
+        return initiativeId;
+    }
+
+    function removeInitiative(uint256 initiativeId)
+        public
+        onlyRole(CONTROLLER_ROLE)
+    {
+        _activeInitiatives.remove(initiativeId);
+        _initiatives[initiativeId].active = false;
+        _sharesNeedsUpdate = true;
+    }
+
+    function setInitiativesShares(
+        uint256[] memory initiativeIds,
+        uint256[] memory shares
+    ) public override onlyRole(CONTROLLER_ROLE) {
+        if (initiativeIds.length == 0) {
+            revert EmptyInitiatives();
+        }
+        if (initiativeIds.length != shares.length) {
+            revert InitiativesAndSharesLengthsNotEqual(
+                initiativeIds.length,
+                shares.length
             );
         }
+
+        _sharesNeedsUpdate = false;
+
+        uint256 totalShares;
+        for (uint256 i = 0; i < initiativeIds.length; i++) {
+            totalShares += shares[i];
+            _initiatives[initiativeIds[i]].share = shares[i];
+
+            if (!_activeInitiatives.contains(initiativeIds[i])) {
+                revert InitiativeNotActive(initiativeIds[i]);
+            }
+        }
+        if (totalShares != 100) {
+            revert InvalidSharesSum(totalShares, 100);
+        }
+    }
+
+    function initiatives()
+        public
+        view
+        override
+        returns (Initiative[] memory activeInitiatives)
+    {
+        uint256 total = _activeInitiatives.length();
+        activeInitiatives = new Initiative[](total);
+        for (uint256 i = 0; i < total; i++) {
+            activeInitiatives[i] = _initiatives[_activeInitiatives.at(i)];
+        }
+        return activeInitiatives;
     }
 
     function epoch() public view override returns (uint256) {
         return _epochCounter.current();
     }
-
-    /// TODO: mitigate blocked funds from undelegated amount
 }

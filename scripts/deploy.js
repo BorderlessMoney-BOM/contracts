@@ -37,6 +37,12 @@ async function main() {
   console.log("Borderless NFT deployed to:", borderlessNft.address);
   console.log("Aave USDC strategy deployed to:", aaveUsdcStrategy.address);
   console.log("SDG Staking deployed to:", sdgStaking.address);
+
+  console.log("")
+
+  console.log(`npx hardhat verify --network mumbai ${borderlessNft.address}`);
+  console.log(`npx hardhat verify --network mumbai ${aaveUsdcStrategy.address} ${usdc} ${aPolUsdc} ${aavePool}`);
+  console.log(`npx hardhat verify --network mumbai ${sdgStaking.address} ${borderlessNft.address} ${usdc}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

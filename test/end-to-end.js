@@ -21,12 +21,13 @@ describe("End to end", function () {
   let borderlessNft;
   let aaveUsdcStrategy;
   let fakePool;
-  let controller;
   let addr1;
   let addr2;
+  let initiativeA;
+  let initiativeB;
 
   before(async function () {
-    [controller, addr1, addr2] = await ethers.getSigners();
+    [_, addr1, addr2, initiativeA, initiativeB] = await ethers.getSigners();
     const BorderlessNFT = await ethers.getContractFactory("BorderlessNFT");
     const USDC = await ethers.getContractFactory("USDC");
     const AaveUsdcStrategy = await ethers.getContractFactory(
@@ -111,9 +112,15 @@ describe("End to end", function () {
     expect(await aaveUsdcStrategy.totalRewards()).equal("25300000");
   });
 
-  it("Should controller collect rewards successfully", async function () {
-    await sdgStaking.collectRewards();
-    expect(await usdc.balanceOf(controller.address)).equal("25306388");
+  it("Should controller distribute rewards successfully", async function () {
+    await sdgStaking.addInitiative("Initiative A", initiativeA.address);
+    await sdgStaking.addInitiative("Initiative B", initiativeB.address);
+    await sdgStaking.setInitiativesShares([0, 1], [50, 50]);
+
+    await sdgStaking.distributeRewards();
+
+    expect(await usdc.balanceOf(initiativeA.address)).equal("12662777");
+    expect(await usdc.balanceOf(initiativeB.address)).equal("12662777");
   });
 
   it("Should exit stake emit exit event", async function () {
@@ -143,11 +150,11 @@ describe("End to end", function () {
     await expect(sdgStaking.connect(addr2).exit(1)).to.emit(sdgStaking, "Exit");
   });
 
-  it("Should exit undelegated stake", async function() {
+  it("Should exit undelegated stake", async function () {
     await usdc.connect(addr1).approve(sdgStaking.address, toUSDC("10000"));
     await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"))).to.emit(
       sdgStaking,
       "Stake"
     );
-  })
+  });
 });

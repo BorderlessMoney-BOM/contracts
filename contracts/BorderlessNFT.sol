@@ -8,14 +8,19 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./IBorderlessNFT.sol";
 
-contract BorderlessNFT is ERC721, ERC721Enumerable, ERC721Burnable, AccessControl {
+contract BorderlessNFT is
+    ERC721,
+    ERC721Enumerable,
+    ERC721Burnable,
+    AccessControl
+{
     using Counters for Counters.Counter;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     Counters.Counter private _tokenIdCounter;
-    mapping (uint => address) public tokenIdToSDGOperator;
+    mapping(uint256 => address) public tokenIdToSDGOperator;
 
     constructor() ERC721("Borderless", "BLESS") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -25,11 +30,17 @@ contract BorderlessNFT is ERC721, ERC721Enumerable, ERC721Burnable, AccessContro
         return "https://base.uri";
     }
 
-    function safeMint(address to, address sdgOperator) public onlyRole(MINTER_ROLE) {
-        uint256 tokenId = _tokenIdCounter.current();
+    function safeMint(address to, address sdgOperator)
+        public
+        onlyRole(MINTER_ROLE)
+        returns (uint256 tokenId)
+    {
+        tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         tokenIdToSDGOperator[tokenId] = sdgOperator;
         _safeMint(to, tokenId);
+
+        return tokenId;
     }
 
     function burn(uint256 tokenId) public override onlyRole(BURNER_ROLE) {
@@ -40,10 +51,11 @@ contract BorderlessNFT is ERC721, ERC721Enumerable, ERC721Burnable, AccessContro
         return tokenIdToSDGOperator[tokenId];
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override(ERC721, ERC721Enumerable) {
         super._beforeTokenTransfer(from, to, tokenId);
     }
 

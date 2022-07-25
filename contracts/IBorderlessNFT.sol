@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 interface IBorderlessNFT {
-    function safeMint(address to, address sdgOperator) external;
+    function safeMint(address to, address sdgOperator) external returns (uint256 stakeId);
 
     function totalSupply() external view returns (uint256);
 

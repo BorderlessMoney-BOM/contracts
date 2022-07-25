@@ -9,9 +9,10 @@ describe("SDG", function () {
   let borderlessNft;
   let aaveUsdcStrategy;
   let addr1;
+  let addr2;
 
   beforeEach(async function () {
-    [_, addr1] = await ethers.getSigners();
+    [_, addr1, addr2] = await ethers.getSigners();
     const BorderlessNFT = await ethers.getContractFactory("BorderlessNFT");
     const USDC = await ethers.getContractFactory("USDC");
     const AaveUsdcStrategy = await ethers.getContractFactory(
@@ -69,7 +70,8 @@ describe("SDG", function () {
   it("Should stake increase next epoch balance", async function () {
     await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
 
-    const storedBalanceInCurrentEpoch = await sdgStaking.storedBalanceInCurrentEpoch();
+    const storedBalanceInCurrentEpoch =
+      await sdgStaking.storedBalanceInCurrentEpoch();
     expect(storedBalanceInCurrentEpoch.nextEpochBalance).equal(
       ethers.utils.parseEther("1")
     );
@@ -114,10 +116,7 @@ describe("SDG", function () {
     await sdgStaking.addStrategy(strategy1Mock.address);
     await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
 
-    await sdgStaking.delegateAll(
-      [strategy1Mock.address],
-      [100]
-    );
+    await sdgStaking.delegateAll([strategy1Mock.address], [100]);
 
     expect((await sdgStaking.stakeInfoByStakeId(0)).status).equal(1);
   });
@@ -131,10 +130,7 @@ describe("SDG", function () {
     expect(await sdgStaking.stakesByStatus(0)).length(2);
     expect(await sdgStaking.stakesByStatus(1)).length(0);
 
-    await sdgStaking.delegateAll(
-      [strategy1Mock.address],
-      [100]
-    );
+    await sdgStaking.delegateAll([strategy1Mock.address], [100]);
 
     expect(await sdgStaking.stakesByStatus(0)).length(0);
     expect(await sdgStaking.stakesByStatus(1)).length(2);
@@ -144,37 +140,88 @@ describe("SDG", function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.addStrategy(strategy1Mock.address);
 
-    await expect(sdgStaking.delegateAll([strategy1Mock.address], [30])).revertedWith(
-      customError("InvalidSharesSum", 30, 100)
-    );
+    await expect(
+      sdgStaking.delegateAll([strategy1Mock.address], [30])
+    ).revertedWith(customError("InvalidSharesSum", 30, 100));
   });
 
   it("Should delegate fails if theres theres nothing to delegate", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
 
-    await expect(sdgStaking.delegateAll([strategy1Mock.address], [100])).revertedWith(
-      customError("NothingToDelegate")
-    );
+    await expect(
+      sdgStaking.delegateAll([strategy1Mock.address], [100])
+    ).revertedWith(customError("NothingToDelegate"));
   });
 
   it("Should delegate fails if use a invalid strategy", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
 
-    await expect(sdgStaking.delegateAll([strategy1Mock.address], [100])).revertedWith(
-      customError("InvalidStrategy", strategy1Mock.address)
-    );
+    await expect(
+      sdgStaking.delegateAll([strategy1Mock.address], [100])
+    ).revertedWith(customError("InvalidStrategy", strategy1Mock.address));
   });
 
   it("Should delegate fails if use a removed strategy", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
-    
+
     await sdgStaking.addStrategy(strategy1Mock.address);
     await sdgStaking.removeStrategy(strategy1Mock.address);
 
-    await expect(sdgStaking.delegateAll([strategy1Mock.address], [100])).revertedWith(
-      customError("InvalidStrategy", strategy1Mock.address)
-    );
+    await expect(
+      sdgStaking.delegateAll([strategy1Mock.address], [100])
+    ).revertedWith(customError("InvalidStrategy", strategy1Mock.address));
+  });
+
+  it("Should add initiatives successfully", async function () {
+    await sdgStaking.addInitiative("Initiative A", addr1.address);
+    await sdgStaking.addInitiative("Initiative B", addr2.address);
+    const initiatives = await sdgStaking.initiatives();
+
+    expect(initiatives.length).equal(2);
+    expect(initiatives[0].id).equal(0);
+    expect(initiatives[0].name).equal("Initiative A");
+    expect(initiatives[0].controller).equal(addr1.address);
+    expect(initiatives[1].id).equal(1);
+    expect(initiatives[1].name).equal("Initiative B");
+    expect(initiatives[1].controller).equal(addr2.address);
+  });
+
+  it("Should remove initiatives successfully", async function () {
+    await sdgStaking.addInitiative("Initiative A", addr1.address);
+    await sdgStaking.addInitiative("Initiative B", addr2.address);
+
+    await sdgStaking.removeInitiative(0);
+
+    let initiatives = await sdgStaking.initiatives();
+
+    expect(initiatives.length).equal(1);
+    expect(initiatives[0].name).equal("Initiative B");
+    expect(initiatives[0].controller).equal(addr2.address);
+
+    await sdgStaking.addInitiative("Initiative C", addr1.address);
+
+    initiatives = await sdgStaking.initiatives();
+
+    expect(initiatives.length).equal(2);
+    expect(initiatives[0].id).equal(1);
+    expect(initiatives[0].name).equal("Initiative B");
+    expect(initiatives[0].controller).equal(addr2.address);
+    expect(initiatives[1].id).equal(2);
+    expect(initiatives[1].name).equal("Initiative C");
+    expect(initiatives[1].controller).equal(addr1.address);
+  });
+
+  it("Should set initiatives shares successfully", async function () {
+    await sdgStaking.addInitiative("Initiative A", addr1.address);
+    await sdgStaking.addInitiative("Initiative B", addr2.address);
+
+    await sdgStaking.setInitiativesShares([0, 1], [30, 70]);
+
+    const initiatives = await sdgStaking.initiatives();
+
+    expect(initiatives[0].share).equal(30);
+    expect(initiatives[1].share).equal(70);
   });
 });
