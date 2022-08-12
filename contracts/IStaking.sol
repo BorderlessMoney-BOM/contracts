@@ -73,6 +73,12 @@ interface IStaking {
         DELEGATED
     }
 
+    enum StakePeriod {
+        THREE_MONTHS,
+        SIX_MONTHS,
+        ONE_YEAR
+    }
+
     struct StoredBalance {
         uint256 currentEpoch;
         uint256 currentEpochBalance;
@@ -83,7 +89,7 @@ interface IStaking {
         StakeStatus status;
         uint256 amount;
         uint256 createdAt;
-        uint256 stakePeriod;
+        StakePeriod stakePeriod;
         uint256 epoch;
         address[] strategies;
         uint256[] shares;
@@ -100,7 +106,7 @@ interface IStaking {
 
     /// @dev Stake USDC tokens into SDG. Tokens are stored on the SDG until its delegation to strategies.
     /// @param amount of USDC to stake.
-    function stake(uint256 amount) external;
+    function stake(uint256 amount, StakePeriod period) external;
 
     /// @dev Unstake USDC tokens from SDG. Tokens are returned to the sender.
     /// @param stakeId of stake to unstake.

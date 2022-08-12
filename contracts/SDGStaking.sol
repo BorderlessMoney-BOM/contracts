@@ -40,7 +40,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         _grantRole(CONTROLLER_ROLE, msg.sender);
     }
 
-    function stake(uint256 amount) external override {
+    function stake(uint256 amount, StakePeriod period) external override {
         if (amount == 0) {
             revert InvalidAmount(amount, 1**10 * 6);
         }
@@ -63,7 +63,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         _stakeIdToStakeInfo[stakeId] = StakeInfo({
             amount: amount,
             createdAt: block.timestamp,
-            stakePeriod: 10,
+            stakePeriod: period,
             status: StakeStatus.UNDELEGATED,
             strategies: new address[](0),
             shares: new uint256[](0),
@@ -75,15 +75,26 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         emit Stake(stakeId, amount, 10);
     }
 
+    function _periodToTimestamp(StakePeriod period) internal pure returns (uint256 timestamp) {
+        /// TODO: fix values
+        if (period == StakePeriod.THREE_MONTHS) {
+            return 3 * 60;
+        } else if (period == StakePeriod.SIX_MONTHS) {
+            return 6 * 60;
+        } else if (period == StakePeriod.ONE_YEAR) {
+            return 12 * 60;
+        }
+    }
+
     function exit(uint256 stakeId) external nonReentrant {
         if (_nft.ownerOf(stakeId) != msg.sender) {
             revert NotOwnerOfStake(msg.sender, _nft.ownerOf(stakeId), stakeId);
         }
         _nft.burn(stakeId);
 
-        /// TODO: check unstake period
-
         StakeInfo storage stakeInfo = _stakeIdToStakeInfo[stakeId];
+        
+        require(block.timestamp > stakeInfo.createdAt + _periodToTimestamp(stakeInfo.stakePeriod), "Stake period has not expired");
 
         if (stakeInfo.amount == 0) {
             revert NothingToUnstake();

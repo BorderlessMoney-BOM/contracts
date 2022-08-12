@@ -48,18 +48,18 @@ describe("SDG", function () {
 
   it("Should stake emit Stake event", async function () {
     await expect(
-      await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"))
+      await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0)
     ).to.emit(sdgStaking, "Stake");
   });
 
   it("Should stake mint an NFT", async function () {
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0);
 
     expect(await borderlessNft.balanceOf(addr1.address)).to.equal(1);
   });
 
   it("Should stake save token balance", async function () {
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0);
 
     const tokenId = await borderlessNft.tokenOfOwnerByIndex(addr1.address, 0);
     const stakeInfo = await sdgStaking.stakeInfoByStakeId(tokenId);
@@ -68,7 +68,7 @@ describe("SDG", function () {
   });
 
   it("Should stake increase next epoch balance", async function () {
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0);
 
     const storedBalanceInCurrentEpoch =
       await sdgStaking.storedBalanceInCurrentEpoch();
@@ -78,8 +78,8 @@ describe("SDG", function () {
   });
 
   it("Should stake increase undelegated amount", async function () {
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0);
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("1"), 0);
 
     expect(await sdgStaking.stakeBalanceByStatus(0)).equal(
       ethers.utils.parseEther("2")
@@ -94,7 +94,7 @@ describe("SDG", function () {
     const strategy2Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.addStrategy(strategy1Mock.address);
     await sdgStaking.addStrategy(strategy2Mock.address);
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
 
     await sdgStaking.delegateAll(
       [strategy1Mock.address, strategy2Mock.address],
@@ -114,7 +114,7 @@ describe("SDG", function () {
   it("Should delegate set stake status to delegated", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.addStrategy(strategy1Mock.address);
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
 
     await sdgStaking.delegateAll([strategy1Mock.address], [100]);
 
@@ -124,8 +124,8 @@ describe("SDG", function () {
   it("Should delegate store correct stake statuses", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
     await sdgStaking.addStrategy(strategy1Mock.address);
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
 
     expect(await sdgStaking.stakesByStatus(0)).length(2);
     expect(await sdgStaking.stakesByStatus(1)).length(0);
@@ -155,7 +155,7 @@ describe("SDG", function () {
 
   it("Should delegate fails if use a invalid strategy", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
 
     await expect(
       sdgStaking.delegateAll([strategy1Mock.address], [100])
@@ -164,7 +164,7 @@ describe("SDG", function () {
 
   it("Should delegate fails if use a removed strategy", async function () {
     const strategy1Mock = await smockit(aaveUsdcStrategy);
-    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"));
+    await sdgStaking.connect(addr1).stake(ethers.utils.parseEther("10"), 0);
 
     await sdgStaking.addStrategy(strategy1Mock.address);
     await sdgStaking.removeStrategy(strategy1Mock.address);

@@ -69,11 +69,11 @@ describe("End to end", function () {
     await usdc.mint(addr2.address, toUSDC("13000"));
     await usdc.connect(addr1).approve(sdgStaking.address, toUSDC("10000"));
     await usdc.connect(addr2).approve(sdgStaking.address, toUSDC("13000"));
-    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"))).to.emit(
+    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"), 0)).to.emit(
       sdgStaking,
       "Stake"
     );
-    await expect(sdgStaking.connect(addr2).stake(toUSDC("13000"))).to.emit(
+    await expect(sdgStaking.connect(addr2).stake(toUSDC("13000"), 0)).to.emit(
       sdgStaking,
       "Stake"
     );
@@ -124,6 +124,7 @@ describe("End to end", function () {
   });
 
   it("Should exit stake emit exit event", async function () {
+    await skipHours(1);
     await expect(sdgStaking.connect(addr1).exit(0)).to.emit(sdgStaking, "Exit");
   });
 
@@ -152,7 +153,7 @@ describe("End to end", function () {
 
   it("Should exit undelegated stake", async function () {
     await usdc.connect(addr1).approve(sdgStaking.address, toUSDC("10000"));
-    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"))).to.emit(
+    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"), 0)).to.emit(
       sdgStaking,
       "Stake"
     );
