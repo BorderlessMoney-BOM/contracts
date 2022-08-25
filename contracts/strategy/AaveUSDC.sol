@@ -89,12 +89,6 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         view
         returns (uint256 amount)
     {
-        // console.log(
-        //     totalRewards(),
-        //     _previousTotalRewards[sdg],
-        //     balanceOf(sdg),
-        //     collectedRewards(sdg)
-        // );
         return
             ((totalRewards() - _previousTotalRewards[sdg]) * balanceOf(sdg)) /
             totalBalance() +

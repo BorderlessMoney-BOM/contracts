@@ -6,43 +6,25 @@ async function main() {
   const aavePool = "0x6c9fb0d5bd9429eb9cd96b85b81d872281771e6b";
 
   const BorderlessNFT = await hre.ethers.getContractFactory("BorderlessNFT");
-  const AaveUsdcStrategy = await hre.ethers.getContractFactory("AaveUSDCStrategy");
+  const AaveUsdcStrategy = await hre.ethers.getContractFactory(
+    "AaveUSDCStrategy"
+  );
   const borderlessNft = await BorderlessNFT.deploy();
-  const SDG = await hre.ethers.getContractFactory("SDGStaking");
-  const sdgStaking = await SDG.deploy(borderlessNft.address, usdc);
-
   const aaveUsdcStrategy = await AaveUsdcStrategy.deploy(
     usdc,
     aPolUsdc,
     aavePool
   );
 
-  await borderlessNft.grantRole(
-    await borderlessNft.MINTER_ROLE(),
-    sdgStaking.address
-  );
-
-  await borderlessNft.grantRole(
-    await borderlessNft.BURNER_ROLE(),
-    sdgStaking.address
-  );
-
-  await aaveUsdcStrategy.grantRole(
-    await aaveUsdcStrategy.VAULT_ROLE(),
-    sdgStaking.address
-  );
-
-  await sdgStaking.addStrategy(aaveUsdcStrategy.address);
-
   console.log("Borderless NFT deployed to:", borderlessNft.address);
   console.log("Aave USDC strategy deployed to:", aaveUsdcStrategy.address);
-  console.log("SDG Staking deployed to:", sdgStaking.address);
 
-  console.log("")
+  console.log("");
 
   console.log(`npx hardhat verify --network mumbai ${borderlessNft.address}`);
-  console.log(`npx hardhat verify --network mumbai ${aaveUsdcStrategy.address} ${usdc} ${aPolUsdc} ${aavePool}`);
-  console.log(`npx hardhat verify --network mumbai ${sdgStaking.address} ${borderlessNft.address} ${usdc}`);
+  console.log(
+    `npx hardhat verify --network mumbai ${aaveUsdcStrategy.address} ${usdc} ${aPolUsdc} ${aavePool}`
+  );
 }
 
 // We recommend this pattern to be able to use async/await everywhere

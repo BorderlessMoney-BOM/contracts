@@ -15,8 +15,8 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    string name;
-    address feeReceiver;
+    string public name;
+    address public feeReceiver;
 
     bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
 
