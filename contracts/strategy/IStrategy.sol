@@ -24,7 +24,8 @@ interface IStrategy {
 
     /// @dev Withdraw USDC tokens from the strategy contract.
     /// @param amount The amount of USDC tokens to withdraw.
-    function undelegate(uint256 amount) external;
+    /// @return finalAmount The amount of USDC tokens actually withdrawn.
+    function undelegate(uint256 amount) external returns (uint256 finalAmount);
 
     /// @dev Compute the total rewards for the given SDG.
     /// @return The total rewards for the given SDG.

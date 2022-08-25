@@ -65,7 +65,12 @@ error InitiativeNotActive(uint256 initiativeId);
 error InitiativesSharesNeedToBeUpdated();
 
 interface IStaking {
-    event Stake(uint256 stakeId, uint256 amount, uint256 stakePeriod);
+    event Stake(
+        uint256 stakeId,
+        uint256 amount,
+        uint256 stakePeriod,
+        address operator
+    );
     event Exit(uint256 stakeId, uint256 amount);
 
     enum StakeStatus {
@@ -106,7 +111,13 @@ interface IStaking {
 
     /// @dev Stake USDC tokens into SDG. Tokens are stored on the SDG until its delegation to strategies.
     /// @param amount of USDC to stake.
-    function stake(uint256 amount, StakePeriod period) external;
+    /// @param period of stake.
+    /// @param operator operator address.
+    function stake(
+        uint256 amount,
+        StakePeriod period,
+        address operator
+    ) external;
 
     /// @dev Unstake USDC tokens from SDG. Tokens are returned to the sender.
     /// @param stakeId of stake to unstake.
@@ -131,6 +142,25 @@ interface IStaking {
         external
         view
         returns (uint256 balance);
+
+    function computeFee(
+        uint256 initialAmount,
+        uint256 stakedAt,
+        StakePeriod stakePeriod
+    ) external view returns (uint256 finalAmount, uint256 totalFee);
+
+    function feeByStakePeriod(StakePeriod period)
+        external
+        view
+        returns (uint256 fee);
+
+    function setStakePeriodFees(
+        uint256 threeMonthsFee,
+        uint256 sixMonthsFee,
+        uint256 oneYearFee
+    ) external;
+
+    function setFeeReceiver(address) external;
 
     /// @dev Move USDC tokens to strategies by splitting the remaing balance and delegating it to each strategy.
     /// @param strategies of USDC to stake.

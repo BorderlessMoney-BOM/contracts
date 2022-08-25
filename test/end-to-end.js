@@ -25,9 +25,11 @@ describe("End to end", function () {
   let addr2;
   let initiativeA;
   let initiativeB;
+  let feeReceiver;
 
   before(async function () {
-    [_, addr1, addr2, initiativeA, initiativeB] = await ethers.getSigners();
+    [_, addr1, addr2, initiativeA, initiativeB, feeReceiver] =
+      await ethers.getSigners();
     const BorderlessNFT = await ethers.getContractFactory("BorderlessNFT");
     const USDC = await ethers.getContractFactory("USDC");
     const AaveUsdcStrategy = await ethers.getContractFactory(
@@ -38,7 +40,12 @@ describe("End to end", function () {
     usdc = await USDC.deploy();
     fakePool = await FakePool.deploy(usdc.address);
     const SDG = await ethers.getContractFactory("SDGStaking");
-    sdgStaking = await SDG.deploy(borderlessNft.address, usdc.address);
+    sdgStaking = await SDG.deploy(
+      borderlessNft.address,
+      usdc.address,
+      feeReceiver.address,
+      "SDG 1"
+    );
 
     aaveUsdcStrategy = await AaveUsdcStrategy.deploy(
       usdc.address,
@@ -69,14 +76,12 @@ describe("End to end", function () {
     await usdc.mint(addr2.address, toUSDC("13000"));
     await usdc.connect(addr1).approve(sdgStaking.address, toUSDC("10000"));
     await usdc.connect(addr2).approve(sdgStaking.address, toUSDC("13000"));
-    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"), 0)).to.emit(
-      sdgStaking,
-      "Stake"
-    );
-    await expect(sdgStaking.connect(addr2).stake(toUSDC("13000"), 0)).to.emit(
-      sdgStaking,
-      "Stake"
-    );
+    await expect(
+      sdgStaking.connect(addr1).stake(toUSDC("10000"), 0, addr1.address)
+    ).to.emit(sdgStaking, "Stake");
+    await expect(
+      sdgStaking.connect(addr2).stake(toUSDC("13000"), 0, addr2.address)
+    ).to.emit(sdgStaking, "Stake");
   });
 
   it("Should store stake info", async function () {
@@ -124,7 +129,7 @@ describe("End to end", function () {
   });
 
   it("Should exit stake emit exit event", async function () {
-    await skipHours(1);
+    await skipHours(3 * 24 * 30);
     await expect(sdgStaking.connect(addr1).exit(0)).to.emit(sdgStaking, "Exit");
   });
 
@@ -152,10 +157,17 @@ describe("End to end", function () {
   });
 
   it("Should exit undelegated stake", async function () {
+    const oldBalance = await usdc.balanceOf(addr1.address);
+
     await usdc.connect(addr1).approve(sdgStaking.address, toUSDC("10000"));
-    await expect(sdgStaking.connect(addr1).stake(toUSDC("10000"), 0)).to.emit(
-      sdgStaking,
-      "Stake"
-    );
+    await sdgStaking.connect(addr1).stake(toUSDC("10000"), 0, addr1.address);
+
+    await skipHours(3 * 24 * 30);
+
+    await sdgStaking.connect(addr1).exit(2);
+
+    const newBalance = await usdc.balanceOf(addr1.address);
+
+    expect(newBalance.sub(oldBalance)).equal(0);
   });
 });

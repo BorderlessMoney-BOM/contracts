@@ -10,12 +10,13 @@ import "./IStaking.sol";
 import "./IBorderlessNFT.sol";
 import "./strategy/IStrategy.sol";
 
-import "hardhat/console.sol";
-
 contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    string name;
+    address feeReceiver;
 
     bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
 
@@ -31,27 +32,41 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
     mapping(uint256 => StakeInfo) _stakeIdToStakeInfo;
     mapping(StakeStatus => EnumerableSet.UintSet) _stakeStatusToStakeIds;
     mapping(uint256 => Initiative) _initiatives;
+    mapping(StakePeriod => uint256) _stakePeriodToFee;
 
-    constructor(address nft, address usdc) {
+    constructor(
+        address nft,
+        address usdc,
+        address sdgFeeReceiver,
+        string memory sdgName
+    ) {
         _nft = IBorderlessNFT(nft);
         _usdc = IERC20(usdc);
+        feeReceiver = sdgFeeReceiver;
+        name = sdgName;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(CONTROLLER_ROLE, msg.sender);
+
+        setStakePeriodFees(3, 2, 1);
     }
 
-    function stake(uint256 amount, StakePeriod period) external override {
+    function stake(
+        uint256 amount,
+        StakePeriod period,
+        address operator
+    ) external override {
         if (amount == 0) {
             revert InvalidAmount(amount, 1**10 * 6);
         }
 
-        uint256 stakeId = _nft.safeMint(msg.sender, address(this));
+        uint256 stakeId = _nft.safeMint(operator, address(this));
 
-        bool sent = _usdc.transferFrom(msg.sender, address(this), amount);
+        bool sent = _usdc.transferFrom(operator, address(this), amount);
         if (!sent) {
             revert TransferFailed(
                 address(_usdc),
-                msg.sender,
+                operator,
                 address(this),
                 amount
             );
@@ -72,18 +87,37 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
 
         _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].add(stakeId);
 
-        emit Stake(stakeId, amount, 10);
+        emit Stake(stakeId, amount, 10, operator);
     }
 
-    function _periodToTimestamp(StakePeriod period) internal pure returns (uint256 timestamp) {
-        /// TODO: fix values
+    function _periodToTimestamp(StakePeriod period)
+        internal
+        pure
+        returns (uint256 timestamp)
+    {
         if (period == StakePeriod.THREE_MONTHS) {
-            return 3 * 60;
+            return 3 * 30 days;
         } else if (period == StakePeriod.SIX_MONTHS) {
-            return 6 * 60;
-        } else if (period == StakePeriod.ONE_YEAR) {
-            return 12 * 60;
+            return 6 * 30 days;
         }
+
+        return 12 * 30 days;
+    }
+
+    function computeFee(
+        uint256 initialAmount,
+        uint256 stakedAt,
+        StakePeriod stakePeriod
+    ) public view returns (uint256 finalAmount, uint256 totalFee) {
+        if (block.timestamp > stakedAt + _periodToTimestamp(stakePeriod)) {
+            return (initialAmount, 0);
+        }
+
+        uint256 fee = _stakePeriodToFee[stakePeriod];
+        totalFee = (fee * initialAmount) / 100;
+        finalAmount = initialAmount - totalFee;
+
+        return (finalAmount, totalFee);
     }
 
     function exit(uint256 stakeId) external nonReentrant {
@@ -93,35 +127,54 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         _nft.burn(stakeId);
 
         StakeInfo storage stakeInfo = _stakeIdToStakeInfo[stakeId];
-        
-        require(block.timestamp > stakeInfo.createdAt + _periodToTimestamp(stakeInfo.stakePeriod), "Stake period has not expired");
 
         if (stakeInfo.amount == 0) {
             revert NothingToUnstake();
         }
 
+        uint256 undelegatedAmount;
+
         if (stakeInfo.status == StakeStatus.DELEGATED) {
             _stakeStatusToStakeIds[StakeStatus.DELEGATED].remove(stakeId);
-            _undelegate(stakeId);
+            undelegatedAmount = _undelegate(stakeId);
         } else {
             _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].remove(stakeId);
+            undelegatedAmount = stakeInfo.amount;
         }
 
-        bool sent = _usdc.transfer(msg.sender, stakeInfo.amount);
+        (uint256 finalAmount, uint256 totalFee) = computeFee(
+            undelegatedAmount,
+            stakeInfo.createdAt,
+            stakeInfo.stakePeriod
+        );
+
+        if (totalFee > 0) {
+            bool feeSent = _usdc.transfer(feeReceiver, totalFee);
+            if (!feeSent) {
+                revert TransferFailed(
+                    address(_usdc),
+                    address(this),
+                    feeReceiver,
+                    totalFee
+                );
+            }
+        }
+
+        bool sent = _usdc.transfer(msg.sender, finalAmount);
         if (!sent) {
             revert TransferFailed(
                 address(_usdc),
                 address(this),
                 msg.sender,
-                stakeInfo.amount
+                finalAmount
             );
         }
 
         delete _stakeIdToStakeInfo[stakeId];
-        emit Exit(stakeId, stakeInfo.amount);
+        emit Exit(stakeId, finalAmount);
     }
 
-    function _undelegate(uint256 stakeId) internal {
+    function _undelegate(uint256 stakeId) internal returns (uint256 amount) {
         StakeInfo storage stakeInfo = _stakeIdToStakeInfo[stakeId];
         if (stakeInfo.status != StakeStatus.DELEGATED) {
             revert StakeIsNotDelegated(stakeId);
@@ -132,8 +185,10 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
             IStrategy strategy = IStrategy(stakeInfo.strategies[i]);
             uint256 strategyAmount = (stakeInfo.amount * stakeInfo.shares[i]) /
                 100;
-            strategy.undelegate(strategyAmount);
+            amount += strategy.undelegate(strategyAmount);
         }
+
+        return amount;
     }
 
     function stakeInfoByStakeId(uint256 stakeId)
@@ -193,6 +248,32 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         }
 
         return stakeIds;
+    }
+
+    function feeByStakePeriod(StakePeriod period)
+        public
+        view
+        override
+        returns (uint256 fee)
+    {
+        return _stakePeriodToFee[period];
+    }
+
+    function setStakePeriodFees(
+        uint256 threeMonthsFee,
+        uint256 sixMonthsFee,
+        uint256 oneYearFee
+    ) public onlyRole(CONTROLLER_ROLE) {
+        _stakePeriodToFee[StakePeriod.THREE_MONTHS] = threeMonthsFee;
+        _stakePeriodToFee[StakePeriod.SIX_MONTHS] = sixMonthsFee;
+        _stakePeriodToFee[StakePeriod.ONE_YEAR] = oneYearFee;
+    }
+
+    function setFeeReceiver(address newReceiver)
+        external
+        onlyRole(CONTROLLER_ROLE)
+    {
+        feeReceiver = newReceiver;
     }
 
     function delegateAll(address[] memory strategies, uint256[] memory shares)
@@ -357,7 +438,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         }
     }
 
-    function addInitiative(string memory name, address controller)
+    function addInitiative(string memory initiativeName, address controller)
         public
         override
         onlyRole(CONTROLLER_ROLE)
@@ -371,7 +452,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
 
         _initiatives[initiativeId] = Initiative({
             id: initiativeId,
-            name: name,
+            name: initiativeName,
             share: 0,
             collectedRewards: 0,
             controller: controller,

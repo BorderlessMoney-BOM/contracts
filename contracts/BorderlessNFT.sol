@@ -16,18 +16,20 @@ contract BorderlessNFT is
 {
     using Counters for Counters.Counter;
 
+    bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     Counters.Counter private _tokenIdCounter;
     mapping(uint256 => address) public tokenIdToSDGOperator;
+    string _baseUri;
 
     constructor() ERC721("Borderless", "BLESS") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function _baseURI() internal pure override returns (string memory) {
-        return "https://base.uri";
+    function _baseURI() internal view override returns (string memory) {
+        return _baseUri;
     }
 
     function safeMint(address to, address sdgOperator)
@@ -45,6 +47,13 @@ contract BorderlessNFT is
 
     function burn(uint256 tokenId) public override onlyRole(BURNER_ROLE) {
         _burn(tokenId);
+    }
+
+    function setBaseURI(string memory baseURI)
+        public
+        onlyRole(CONTROLLER_ROLE)
+    {
+        _baseUri = baseURI;
     }
 
     function operatorByTokenId(uint256 tokenId) public view returns (address) {

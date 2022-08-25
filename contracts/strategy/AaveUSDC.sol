@@ -41,7 +41,11 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         emit Delegate(amount);
     }
 
-    function undelegate(uint256 amount) external onlyRole(VAULT_ROLE) {
+    function undelegate(uint256 amount)
+        external
+        onlyRole(VAULT_ROLE)
+        returns (uint256)
+    {
         _pool.withdraw(address(_usdc), amount, address(this));
         bool sent = _usdc.transfer(msg.sender, amount);
         if (!sent) {
@@ -55,6 +59,8 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         _withdrawnAmount += amount;
 
         emit Withdraw(amount);
+
+        return amount;
     }
 
     function totalRewards() public view returns (uint256 amount) {
