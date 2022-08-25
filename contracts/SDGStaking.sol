@@ -380,7 +380,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         uint256 totalStrategies = _activeStrategies.length();
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            amount += strategy.totalRewards();
+            amount += strategy.availableRewards(address(this));
         }
 
         return amount;
@@ -395,7 +395,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         uint256 totalStrategies = _activeStrategies.length();
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            amount += strategy.collectedRewards();
+            amount += strategy.collectedRewards(address(this));
         }
 
         return amount;
@@ -410,10 +410,9 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
         uint256 amount;
         for (uint256 i = 0; i < totalStrategies; i++) {
             IStrategy strategy = IStrategy(_activeStrategies.at(i));
-            uint256 availableRewards = strategy.totalRewards() -
-                strategy.collectedRewards();
-            amount += availableRewards;
-            strategy.collectRewards(availableRewards);
+            uint256 availableRewards = strategy.availableRewards(address(this)) -
+                strategy.collectedRewards(address(this));
+            amount += strategy.collectRewards(availableRewards);
         }
 
         uint256 totalInitiatives = _activeInitiatives.length();

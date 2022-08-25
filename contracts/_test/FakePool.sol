@@ -71,15 +71,16 @@ contract FakePool is IERC20 {
         _balances[to] += amount;
         _mintDate[to] = block.timestamp;
 
-        console.log("[Fake Pool] Minting", amount, "to", to);
+        // console.log("[Fake Pool] Minting", amount, "to", to);
         emit Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
         _balances[from] = balanceOf(from);
         _balances[from] -= amount;
+        _mintDate[from] = block.timestamp;
 
-        console.log("[Fake Pool] Burning", amount, "from", from);
+        // console.log("[Fake Pool] Burning", amount, "from", from);
         emit Transfer(from, address(0), amount);
     }
 
@@ -100,7 +101,11 @@ contract FakePool is IERC20 {
         override
         returns (bool)
     {
+        _balances[msg.sender] = balanceOf(msg.sender);
+        _mintDate[msg.sender] = block.timestamp;
         _balances[msg.sender] -= amount;
+        _balances[to] = balanceOf(to);
+        _mintDate[to] = block.timestamp;
         _balances[to] += amount;
         emit Transfer(msg.sender, to, amount);
         return true;
@@ -137,7 +142,11 @@ contract FakePool is IERC20 {
             revert NotEnoughBalance(amount, balanceOf(from));
         }
 
+        _balances[from] = balanceOf(from);
+        _mintDate[from] = block.timestamp;
         _balances[from] -= amount;
+        _balances[to] = balanceOf(to);
+        _mintDate[to] = block.timestamp;
         _balances[to] += amount;
 
         emit Transfer(from, to, amount);

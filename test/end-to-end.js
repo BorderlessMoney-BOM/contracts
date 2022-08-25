@@ -114,7 +114,9 @@ describe("End to end", function () {
 
   it("Should strategy rewards increase", async function () {
     await skipHours(1.1);
-    expect(await aaveUsdcStrategy.totalRewards()).equal("25300000");
+    expect(await aaveUsdcStrategy.availableRewards(sdgStaking.address)).equal(
+      "25300000"
+    );
   });
 
   it("Should controller distribute rewards successfully", async function () {

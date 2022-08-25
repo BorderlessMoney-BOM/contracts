@@ -28,20 +28,21 @@ interface IStrategy {
     function undelegate(uint256 amount) external returns (uint256 finalAmount);
 
     /// @dev Compute the total rewards for the given SDG.
+    /// @param sdg The SDG to compute the rewards for.
     /// @return The total rewards for the given SDG.
-    function totalRewards() external view returns (uint256);
+    function availableRewards(address sdg) external view returns (uint256);
 
     /// @dev Compute the total rewards collected by the given SDG.
+    /// @param sdg The SDG to compute the rewards for.
     /// @return The total rewards collected by the given SDG.
-    function collectedRewards()
-        external
-        view
-        returns (uint256);
+    function collectedRewards(address sdg) external view returns (uint256);
 
     /// @dev Collect rewards for the given SDG.
-    function collectRewards(uint256 amount) external;
+    /// @return finalAmount The amount of USDC tokens actually collected.
+    function collectRewards(uint256 amount) external returns (uint256 finalAmount);
 
     /// @dev Compute the total balance without rewards of the SDG on the strategy.
+    /// @param sdg The SDG to compute the balance for.
     /// @return The total balance without rewards of the SDG on the strategy.
-    function balance() external view returns (uint256);
+    function balanceOf(address sdg) external view returns (uint256);
 }
