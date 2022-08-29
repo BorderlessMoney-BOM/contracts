@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity 0.8.10;
 
 /// Invalid rewards amount. Needed up to `maximumAmount` but sent `amount`
 /// @param amount amount collecting

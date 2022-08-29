@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.10;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -48,9 +48,7 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
 
         _sdgs.add(msg.sender);
 
-        _previousTotalRewards[msg.sender] =
-            _aPolUsdc.balanceOf(address(this)) -
-            totalBalance();
+        _previousTotalRewards[msg.sender] = totalRewards();
 
         _usdc.transferFrom(msg.sender, address(this), amount);
         _usdc.approve(address(_pool), amount);
