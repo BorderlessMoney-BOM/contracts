@@ -120,17 +120,79 @@ describe("Aave USDC Strategy", function () {
 
     await strategy.connect(sdg2).collectRewards(ethers.BigNumber.from("2000"));
 
-    expect(await strategy.availableRewards(sdg1.address)).to.equal(
-      ethers.BigNumber.from("2001")
-    );
+    expect(await strategy.availableRewards(sdg1.address)).deep.oneOf([
+      ethers.BigNumber.from("2000"),
+      ethers.BigNumber.from("2001"),
+    ]);
     expect(await strategy.availableRewards(sdg2.address)).to.equal(
       ethers.BigNumber.from("0")
     );
 
     await skipHours(1);
 
-    expect(await strategy.availableRewards(sdg2.address)).to.equal(
-      ethers.BigNumber.from("2000")
+    expect(await strategy.availableRewards(sdg2.address)).deep.oneOf([
+      ethers.BigNumber.from("2000"),
+      ethers.BigNumber.from("2001"),
+    ]);
+  });
+
+  it("Should rewards be withdrawn successfully", async function () {
+    await strategy.connect(sdg1).delegate(toUSDC("1"));
+
+    await skipHours(1);
+
+    await strategy.connect(sdg2).delegate(toUSDC("2"));
+
+    await skipHours(1);
+
+    await strategy.connect(sdg1).collectRewards(ethers.BigNumber.from("1990"));
+
+    await strategy.connect(sdg2).collectRewards(ethers.BigNumber.from("2000"));
+
+    expect(await strategy.availableRewards(sdg1.address)).to.equal(
+      ethers.BigNumber.from("10")
+    );
+    expect(await strategy.availableRewards(sdg2.address)).deep.oneOf([
+      ethers.BigNumber.from("0"),
+      ethers.BigNumber.from("1"),
+    ]);
+
+    await strategy.connect(sdg1).undelegate(toUSDC("1"));
+    await strategy.connect(sdg2).undelegate(toUSDC("2"));
+
+    expect(await strategy.balanceOf(sdg1.address)).to.equal(
+      ethers.BigNumber.from("0")
+    );
+    expect(await strategy.balanceOf(sdg2.address)).to.equal(
+      ethers.BigNumber.from("0")
+    );
+
+    expect(await strategy.availableRewards(sdg1.address)).to.equal(
+      ethers.BigNumber.from("10")
+    );
+    expect(await strategy.availableRewards(sdg2.address)).deep.oneOf([
+      ethers.BigNumber.from("0"),
+      ethers.BigNumber.from("1"),
+    ]);
+
+    await strategy.connect(sdg1).collectRewards(ethers.BigNumber.from("10"));
+
+    expect(await strategy.availableRewards(sdg1.address)).to.equal(
+      ethers.BigNumber.from("0")
+    );
+
+    await strategy.connect(sdg1).delegate(toUSDC("10"));
+
+    expect(await strategy.balanceOf(sdg1.address)).to.equal(toUSDC("10"));
+
+    expect(await strategy.availableRewards(sdg1.address)).to.equal(
+      ethers.BigNumber.from("0")
+    );
+
+    await skipHours(1);
+
+    expect(await strategy.availableRewards(sdg1.address)).to.equal(
+      ethers.BigNumber.from("10000")
     );
   });
 });

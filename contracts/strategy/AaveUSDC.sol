@@ -55,7 +55,7 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         _pool.supply(address(_usdc), amount, address(this), 0);
         _delegatedAmount[msg.sender] += amount;
 
-        emit Delegate(amount);
+        emit Delegate(msg.sender, amount);
     }
 
     function undelegate(uint256 amount)
@@ -64,6 +64,10 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         returns (uint256)
     {
         _materializeRewards();
+
+        if (amount > balanceOf(msg.sender)) {
+            revert InvalidUndelegateAmount(msg.sender, amount, balanceOf(msg.sender));
+        }
 
         _pool.withdraw(address(_usdc), amount, address(this));
         bool sent = _usdc.transfer(msg.sender, amount);
@@ -77,7 +81,7 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         }
         _withdrawnAmount[msg.sender] += amount;
 
-        emit Withdraw(amount);
+        emit Withdraw(msg.sender, amount);
 
         return amount;
     }
@@ -87,6 +91,9 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         view
         returns (uint256 amount)
     {
+        if (totalRewards() == _previousTotalRewards[sdg]) {
+            return _materializedRewards[sdg];
+        }
         return
             ((totalRewards() - _previousTotalRewards[sdg]) * balanceOf(sdg)) /
             totalBalance() +
@@ -107,10 +114,10 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
         onlyRole(VAULT_ROLE)
         returns (uint256)
     {
+        _materializeRewards();
         if (amount > availableRewards(msg.sender)) {
             revert InvalidRewardsAmount(amount, availableRewards(msg.sender));
         }
-        _collectedRewards[msg.sender] += amount;
 
         _pool.withdraw(address(_usdc), amount, address(this));
         bool sent = _usdc.transfer(msg.sender, amount);
@@ -123,10 +130,11 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
             );
         }
 
-        _withdrawnAmount[msg.sender] += amount;
+        _collectedRewards[msg.sender] += amount;
         _previousTotalRewards[msg.sender] = totalRewards();
+        _materializedRewards[msg.sender] -= amount;
 
-        emit CollectRewards(amount);
+        emit CollectRewards(msg.sender, amount);
 
         return amount;
     }
@@ -144,7 +152,7 @@ contract AaveUSDCStrategy is IStrategy, AccessControl {
     }
 
     function totalRewards() public view returns (uint256 amount) {
-        return _aPolUsdc.balanceOf(address(this)) - totalBalance();
+        return _aPolUsdc.balanceOf(address(this)) + totalCollectedRewards() - totalBalance();
     }
 
     function totalCollectedRewards() public view returns (uint256 amount) {

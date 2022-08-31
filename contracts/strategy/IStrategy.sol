@@ -13,10 +13,16 @@ error InvalidRewardsAmount(uint256 amount, uint256 maximumAmount);
 /// @param amount amount to transfer.
 error TransferFailed(address token, address from, address to, uint256 amount);
 
+/// Undelegate amount must be less or equal than SDG balance.
+/// @param sdg sdg address
+/// @param amount amount to undelegate
+/// @param balance sdg balance
+error InvalidUndelegateAmount(address sdg, uint256 amount, uint256 balance);
+
 interface IStrategy {
-    event Delegate(uint256 amount);
-    event Withdraw(uint256 amount);
-    event CollectRewards(uint256 amount);
+    event Delegate(address sdg, uint256 amount);
+    event Withdraw(address sdg, uint256 amount);
+    event CollectRewards(address sdg, uint256 amount);
 
     /// @dev Transfer USDC tokens to the strategy contract.
     /// @param amount The amount of USDC tokens to transfer.
