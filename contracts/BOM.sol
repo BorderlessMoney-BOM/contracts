@@ -16,7 +16,7 @@ contract BorderlessMoney is ERC20, ERC20Snapshot, AccessControl, ERC20Permit, ER
     {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(CONTROLLER_ROLE, msg.sender);
-        _mint(msg.sender, 10_000_000 * 10 ** decimals());
+        _mint(msg.sender, 1_000_000_000 * 10 ** decimals());
     }
 
     function snapshot() public onlyRole(CONTROLLER_ROLE) {
