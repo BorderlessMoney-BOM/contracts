@@ -311,7 +311,7 @@ contract SDGStaking is IStaking, AccessControl, ReentrancyGuard {
             _stakeIdToStakeInfo[stakeId].status = StakeStatus.DELEGATED;
             _stakeIdToStakeInfo[stakeId].strategies = strategies;
             _stakeIdToStakeInfo[stakeId].shares = shares;
-            _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].remove(i - 1);
+            _stakeStatusToStakeIds[StakeStatus.UNDELEGATED].remove(stakeId);
             _stakeStatusToStakeIds[StakeStatus.DELEGATED].add(stakeId);
         }
 
