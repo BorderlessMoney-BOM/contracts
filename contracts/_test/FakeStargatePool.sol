@@ -9,7 +9,7 @@ import "hardhat/console.sol";
 
 error NotEnoughBalance(uint256 amount, uint256 balance);
 
-contract FakePool is IERC20 {
+contract FakeStargatePool is IERC20 {
     USDC _usdc;
 
     mapping(address => uint256) _balances;
@@ -32,41 +32,8 @@ contract FakePool is IERC20 {
         return 6;
     }
 
-    function supply(
-        address token,
-        uint256 amount,
-        address controller,
-        uint16 referer
-    ) public {
-        _usdc.transferFrom(msg.sender, address(this), amount);
-        _mint(controller, amount);
+    function mint(address to, uint256 amount) public {
         _totalSupply += amount;
-
-        token;
-        referer;
-    }
-
-    function withdraw(
-        address token,
-        uint256 amount,
-        address receiver
-    ) public returns (uint256) {
-        token;
-        if (_balances[msg.sender] < amount) {
-            revert NotEnoughBalance(amount, _balances[msg.sender]);
-        }
-
-        _burn(msg.sender, amount);
-        if (amount > _usdc.balanceOf(address(this))) {
-            uint256 missingAmount = amount - _usdc.balanceOf(address(this));
-            _usdc.mint(address(this), missingAmount);
-        }
-        _usdc.transfer(receiver, amount);
-
-        return amount;
-    }
-
-    function _mint(address to, uint256 amount) internal {
         _balances[to] = balanceOf(to);
         _balances[to] += amount;
         _mintDate[to] = block.timestamp;
@@ -75,7 +42,8 @@ contract FakePool is IERC20 {
         emit Transfer(address(0), to, amount);
     }
 
-    function _burn(address from, uint256 amount) internal {
+    function burn(address from, uint256 amount) public {
+        _totalSupply += amount;
         _balances[from] = balanceOf(from);
         _balances[from] -= amount;
         _mintDate[from] = block.timestamp;
@@ -89,6 +57,7 @@ contract FakePool is IERC20 {
     }
 
     function balanceOf(address account) public view override returns (uint256) {
+        // return _balances[account];
         uint256 diffInSeconds = block.timestamp - _mintDate[account];
         return
             _balances[account] +
@@ -101,12 +70,20 @@ contract FakePool is IERC20 {
         override
         returns (bool)
     {
+        // console.log(
+        //     " >>>>>> transfer %s to %s with balance %s",
+        //     amount,
+        //     to,
+        //     balanceOf(msg.sender)
+        // );
+        require(balanceOf(msg.sender) >= amount, "Not enough balance");
         _balances[msg.sender] = balanceOf(msg.sender);
         _mintDate[msg.sender] = block.timestamp;
         _balances[msg.sender] -= amount;
         _balances[to] = balanceOf(to);
         _mintDate[to] = block.timestamp;
         _balances[to] += amount;
+
         emit Transfer(msg.sender, to, amount);
         return true;
     }

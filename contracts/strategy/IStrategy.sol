@@ -19,6 +19,9 @@ error TransferFailed(address token, address from, address to, uint256 amount);
 /// @param balance sdg balance
 error InvalidUndelegateAmount(address sdg, uint256 amount, uint256 balance);
 
+/// Strategy is paused.
+error StrategyPaused();
+
 interface IStrategy {
     event Delegate(address sdg, uint256 amount);
     event Withdraw(address sdg, uint256 amount);
@@ -45,7 +48,9 @@ interface IStrategy {
 
     /// @dev Collect rewards for the given SDG.
     /// @return finalAmount The amount of USDC tokens actually collected.
-    function collectRewards(uint256 amount) external returns (uint256 finalAmount);
+    function collectRewards(uint256 amount)
+        external
+        returns (uint256 finalAmount);
 
     /// @dev Compute the total balance without rewards of the SDG on the strategy.
     /// @param sdg The SDG to compute the balance for.

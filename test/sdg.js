@@ -276,4 +276,33 @@ describe("SDG", function () {
       ethers.utils.parseEther("970")
     );
   });
+
+  it("Should delegate store correct stake statuses 2", async function () {
+    const strategy1Mock = await smockit(aaveUsdcStrategy);
+
+    await sdgStaking
+      .connect(addr1)
+      .stake(ethers.utils.parseEther("10"), 0, addr1.address);
+    await sdgStaking.connect(addr1).exit(0);
+    await sdgStaking
+      .connect(addr1)
+      .stake(ethers.utils.parseEther("10"), 0, addr1.address);
+    await sdgStaking.connect(addr1).exit(1);
+    await sdgStaking
+      .connect(addr1)
+      .stake(ethers.utils.parseEther("10"), 0, addr1.address);
+    await sdgStaking
+      .connect(addr1)
+      .stake(ethers.utils.parseEther("10"), 0, addr1.address);
+
+    await sdgStaking.addStrategy(strategy1Mock.address);
+
+    expect(await sdgStaking.stakesByStatus(0)).length(2);
+    expect(await sdgStaking.stakesByStatus(1)).length(0);
+
+    await sdgStaking.delegateAll([strategy1Mock.address], [100]);
+
+    expect(await sdgStaking.stakesByStatus(0)).length(0);
+    expect(await sdgStaking.stakesByStatus(1)).length(2);
+  });
 });

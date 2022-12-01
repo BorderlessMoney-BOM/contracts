@@ -1,10 +1,10 @@
 const hre = require("hardhat");
 
 async function main() {
-  const BOM = await hre.ethers.getContractFactory("BorderlessMoney");
+  const BOM = await hre.ethers.getContractFactory("QLQ");
   const bom = await BOM.deploy();
 
-  console.log("BOM deployed to:", bom.address);
+  console.log("QLQ deployed to:", bom.address);
   console.log("");
 
   console.log(`npx hardhat verify --network matic ${bom.address}`);
